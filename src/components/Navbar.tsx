@@ -2,9 +2,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { Search, User, LogOut, Upload, BookOpen } from "lucide-react";
+import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar: React.FC = () => {
+  const { user, logout, isAuthenticated, isAdmin } = useAuth();
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
@@ -24,15 +27,44 @@ const Navbar: React.FC = () => {
           <Link to="/resources" className="text-gray-700 hover:text-brand-600 font-medium">
             Resources
           </Link>
+          {isAuthenticated && (
+            <Link to="/upload" className="text-gray-700 hover:text-brand-600 font-medium flex items-center">
+              <Upload className="h-4 w-4 mr-1" />
+              Upload
+            </Link>
+          )}
+          {isAdmin && (
+            <Link to="/admin/dashboard" className="text-gray-700 hover:text-brand-600 font-medium">
+              Dashboard
+            </Link>
+          )}
         </div>
         
         <div className="flex items-center space-x-3">
-          <Button variant="outline" size="icon">
-            <Search className="h-4 w-4" />
+          <Button variant="outline" size="icon" asChild>
+            <Link to="/resources">
+              <Search className="h-4 w-4" />
+            </Link>
           </Button>
-          <Button className="bg-brand-600 hover:bg-brand-700">
-            Get Started
-          </Button>
+          
+          {isAuthenticated ? (
+            <>
+              <Button variant="outline" size="icon" asChild>
+                <Link to="/profile">
+                  <User className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button variant="outline" size="icon" onClick={logout}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <Button className="bg-brand-600 hover:bg-brand-700" asChild>
+              <Link to="/login">
+                Get Started
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
     </nav>
