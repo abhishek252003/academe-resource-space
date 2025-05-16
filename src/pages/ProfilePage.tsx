@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
-import { BookOpen, User } from 'lucide-react';
+import { BookOpen, User, Upload } from 'lucide-react';
 
 const ProfilePage = () => {
   const { user, logout, isAuthenticated } = useAuth();
