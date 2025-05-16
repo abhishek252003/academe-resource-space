@@ -10,7 +10,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import Navbar from '@/components/Navbar';
-import { Loader2 } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -21,8 +22,15 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -35,10 +43,22 @@ const Login = () => {
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     try {
+      // For testing purposes, show credentials in console
+      console.log("Login attempt with:", data.email, data.password);
+      
       const success = await login(data.email, data.password);
       if (success) {
         navigate('/');
+      } else {
+        // Add a helpful message if login fails
+        toast({
+          title: "Login failed",
+          description: "Please check your email and password and try again. For testing, you can use: admin@studyhub.com / admin123 or student@studyhub.com / student123",
+          variant: "destructive",
+        });
       }
+    } catch (error) {
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -88,10 +108,9 @@ const Login = () => {
                   )}
                 />
                 
-                <div className="text-sm">
-                  <Link to="/forgot-password" className="text-brand-600 hover:text-brand-700">
-                    Forgot your password?
-                  </Link>
+                {/* Removed the forgot password link that was causing 404 errors */}
+                <div className="text-sm text-gray-500">
+                  Use demo accounts: admin@studyhub.com / admin123 or student@studyhub.com / student123
                 </div>
               </CardContent>
               
@@ -105,7 +124,11 @@ const Login = () => {
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Please wait
                     </>
-                  ) : "Sign In"}
+                  ) : (
+                    <>
+                      <LogIn className="mr-2 h-4 w-4" /> Sign In
+                    </>
+                  )}
                 </Button>
                 
                 <div className="text-center text-sm">

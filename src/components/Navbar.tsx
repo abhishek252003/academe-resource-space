@@ -1,12 +1,23 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Search, User, LogOut, Upload, BookOpen } from "lucide-react";
+import { Search, User, LogOut, Upload, BookOpen, LogIn } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 const Navbar: React.FC = () => {
   const { user, logout, isAuthenticated, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out",
+    });
+    navigate('/');
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b">
@@ -49,19 +60,22 @@ const Navbar: React.FC = () => {
           
           {isAuthenticated ? (
             <>
+              <div className="hidden md:block text-sm text-gray-600 mr-2">
+                {user?.name}
+              </div>
               <Button variant="outline" size="icon" asChild>
                 <Link to="/profile">
                   <User className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button variant="outline" size="icon" onClick={logout}>
+              <Button variant="outline" size="icon" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
             </>
           ) : (
             <Button className="bg-brand-600 hover:bg-brand-700" asChild>
               <Link to="/login">
-                Get Started
+                <LogIn className="h-4 w-4 mr-2" /> Sign In
               </Link>
             </Button>
           )}
