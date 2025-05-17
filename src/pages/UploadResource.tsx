@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
@@ -14,6 +14,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Loader2, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 
 const uploadSchema = z.object({
   title: z.string().min(3, { message: "Title must be at least 3 characters" }),
@@ -29,16 +31,44 @@ type UploadFormValues = z.infer<typeof uploadSchema>;
 
 const UploadResource = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
   // Redirect to login if not authenticated
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
+
+  // Fetch colleges from Supabase
+  const { data: collegesData } = useQuery({
+    queryKey: ['colleges'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('colleges')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  // Fetch departments from Supabase
+  const { data: departmentsData } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('departments')
+        .select('name')
+        .order('name');
+      
+      if (error) throw error;
+      return data?.map(dep => dep.name) || [];
+    }
+  });
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadSchema),
@@ -53,11 +83,58 @@ const UploadResource = () => {
   });
 
   const onSubmit = async (data: UploadFormValues) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to upload resources",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
+    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log('Submitted data:', data);
+      // 1. Upload file to Supabase Storage
+      const file = data.file[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+      
+      const { error: uploadError, data: fileData } = await supabase.storage
+        .from('resources')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage.from('resources').getPublicUrl(filePath);
+      
+      // 2. Get college ID based on selected college name
+      let collegeId = null;
+      if (data.college) {
+        const selectedCollege = collegesData?.find(college => college.name === data.college);
+        collegeId = selectedCollege?.id;
+      }
+
+      // 3. Insert resource record in database
+      const { error: resourceError } = await supabase
+        .from('resources')
+        .insert({
+          title: data.title,
+          description: data.description,
+          user_id: user.id,
+          college_id: collegeId,
+          department: data.department,
+          year: data.year,
+          type: data.type,
+          file_url: publicUrl,
+          file_type: fileExt?.toUpperCase() || 'UNKNOWN',
+          file_size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          status: 'pending', // Requires admin approval
+        });
+
+      if (resourceError) throw resourceError;
       
       toast({
         title: "Resource uploaded successfully",
@@ -77,11 +154,19 @@ const UploadResource = () => {
     }
   };
 
-  // Mock data - would be fetched from API in production
-  const colleges = ["Stanford University", "MIT", "Harvard University", "UCLA"];
-  const departments = ["Computer Science", "Mechanical Engineering", "Business", "Physics", "Mathematics"];
+  // Years data
   const years = ["2022", "2023", "2024", "2025"];
+  
+  // Resource types
   const resourceTypes = ["Notes", "Question Papers", "Textbooks", "Assignments", "Lab Reports"];
+
+  // Show colleges from the database or use fallback data
+  const colleges = collegesData?.map(college => college.name) || 
+    ["Stanford University", "MIT", "Harvard University", "UCLA"];
+    
+  // Show departments from the database or use fallback data
+  const departments = departmentsData || 
+    ["Computer Science", "Mechanical Engineering", "Business", "Physics", "Mathematics"];
 
   return (
     <div className="min-h-screen bg-gray-50">

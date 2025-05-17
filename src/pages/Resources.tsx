@@ -4,132 +4,21 @@ import Navbar from '@/components/Navbar';
 import ResourceCard from '@/components/ResourceCard';
 import FilterSection from '@/components/FilterSection';
 import SearchBar from '@/components/SearchBar';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
 
-// Mock data
-const allDepartments = [
-  "Computer Science", 
-  "Electrical Engineering", 
-  "Mechanical Engineering", 
-  "Civil Engineering",
-  "Physics", 
-  "Mathematics", 
-  "Chemistry", 
-  "Biology",
-  "Business", 
-  "Economics", 
-  "Finance", 
-  "Marketing",
-  "English", 
-  "History", 
-  "Philosophy", 
-  "Art"
-];
-
-const years = ["2025", "2024", "2023", "2022", "2021"];
-const resourceTypes = ["Study Material", "Question Paper", "Course Notes"];
-
-// Mock resources data
-const resourcesData = [
-  {
-    id: "1",
-    title: "Data Structures and Algorithms",
-    type: "Study Material",
-    subject: "Computer Science",
-    year: "2024",
-    department: "Computer Science",
-    fileSize: "3.2 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "2",
-    title: "Digital Logic Design",
-    type: "Course Notes",
-    subject: "Electronics",
-    year: "2023",
-    department: "Electrical Engineering",
-    fileSize: "1.8 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "3",
-    title: "Operating Systems Final Exam",
-    type: "Question Paper",
-    subject: "Computer Science",
-    year: "2024",
-    department: "Computer Science",
-    fileSize: "1.2 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "4",
-    title: "Machine Learning Fundamentals",
-    type: "Study Material",
-    subject: "AI",
-    year: "2023",
-    department: "Computer Science",
-    fileSize: "5.6 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "5",
-    title: "Networking Protocols",
-    type: "Course Notes",
-    subject: "Computer Networks",
-    year: "2022",
-    department: "Computer Science",
-    fileSize: "2.4 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "6",
-    title: "Distributed Systems Midterm",
-    type: "Question Paper",
-    subject: "Advanced Computing",
-    year: "2024",
-    department: "Computer Science",
-    fileSize: "1.5 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "7",
-    title: "Classical Mechanics",
-    type: "Study Material",
-    subject: "Physics",
-    year: "2023",
-    department: "Physics",
-    fileSize: "4.1 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "8",
-    title: "Organic Chemistry Lab Manual",
-    type: "Course Notes",
-    subject: "Chemistry",
-    year: "2024",
-    department: "Chemistry",
-    fileSize: "3.7 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-  {
-    id: "9",
-    title: "Calculus II Final Exam",
-    type: "Question Paper",
-    subject: "Mathematics",
-    year: "2022",
-    department: "Mathematics",
-    fileSize: "1.3 MB",
-    fileType: "PDF",
-    downloadUrl: "#",
-  },
-];
+interface Resource {
+  id: string;
+  title: string;
+  type: string;
+  department: string;
+  year: string;
+  file_url: string;
+  file_type: string;
+  file_size: string;
+  subject?: string;
+}
 
 const Resources = () => {
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
@@ -137,16 +26,64 @@ const Resources = () => {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Filter resources based on selected filters and search query
-  const filteredResources = resourcesData.filter(resource => {
-    return (
-      (!selectedYear || resource.year === selectedYear) &&
-      (!selectedDepartment || resource.department === selectedDepartment) &&
-      (!selectedType || resource.type === selectedType) &&
-      (!searchQuery || 
-        resource.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        resource.subject?.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+  // Fetch departments for filter dropdown
+  const { data: allDepartments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('departments')
+        .select('name')
+        .order('name');
+      
+      if (error) throw error;
+      return data?.map(dep => dep.name) || [];
+    },
+    initialData: [
+      "Computer Science", "Electrical Engineering", "Mechanical Engineering", "Civil Engineering",
+      "Physics", "Mathematics", "Chemistry", "Biology", 
+      "Business", "Economics", "Finance", "Marketing",
+      "English", "History", "Philosophy", "Art"
+    ]
+  });
+
+  // Years data
+  const years = ["2025", "2024", "2023", "2022", "2021"];
+  
+  // Resource types
+  const resourceTypes = ["Notes", "Question Papers", "Textbooks", "Assignments", "Lab Reports"];
+
+  // Fetch resources from Supabase
+  const { data: resources, isLoading } = useQuery({
+    queryKey: ['resources', selectedYear, selectedDepartment, selectedType],
+    queryFn: async () => {
+      let query = supabase
+        .from('resources')
+        .select('*')
+        .eq('status', 'approved');
+      
+      if (selectedYear) {
+        query = query.eq('year', selectedYear);
+      }
+      if (selectedDepartment) {
+        query = query.eq('department', selectedDepartment);
+      }
+      if (selectedType) {
+        query = query.eq('type', selectedType);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      return data as Resource[];
+    },
+    initialData: [] // Empty array as initial data
+  });
+
+  // Filter resources based on search query
+  const filteredResources = resources.filter(resource => {
+    return !searchQuery || 
+      resource.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      resource.department.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const resetFilters = () => {
@@ -195,7 +132,11 @@ const Resources = () => {
               Resources {filteredResources.length > 0 ? `(${filteredResources.length})` : ''}
             </h2>
             
-            {filteredResources.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center items-center h-60">
+                <Loader2 className="h-12 w-12 animate-spin text-brand-600" />
+              </div>
+            ) : filteredResources.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredResources.map((resource) => (
                   <ResourceCard
@@ -205,9 +146,9 @@ const Resources = () => {
                     subject={resource.subject}
                     year={resource.year}
                     department={resource.department}
-                    fileSize={resource.fileSize}
-                    fileType={resource.fileType}
-                    downloadUrl={resource.downloadUrl}
+                    fileSize={resource.file_size}
+                    fileType={resource.file_type}
+                    downloadUrl={resource.file_url}
                   />
                 ))}
               </div>
